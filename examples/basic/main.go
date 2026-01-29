@@ -41,14 +41,14 @@ func initialModel() model {
 	}
 
 	editMenu := []menubar.MenuItem{
-		{Label: "Cut", Hotkey: "t"},
-		{Label: "Copy", Hotkey: "C"},
-		{Label: "Paste", Hotkey: "P"},
+		{Label: "Cut", Hotkey: "t", Shortcut: "⌃⌘+X"},
+		{Label: "Copy", Hotkey: "C", Shortcut: "⌃⌘+C"},
+		{Label: "Paste", Hotkey: "P", Shortcut: "⌃⌘+P"},
 		{
 			Label:  "Find",
 			Hotkey: "F",
 			SubMenu: []menubar.MenuItem{
-				{Label: "Find...", Hotkey: "F"},
+				{Label: "Find...", Hotkey: "F", Shortcut: "⌃⌘+F"},
 				{Label: "Replace...", Hotkey: "R"},
 				{
 					Label: "Advanced",

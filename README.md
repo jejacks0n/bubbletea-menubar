@@ -2,6 +2,8 @@
 
 A reusable menu bar component for [Bubble Tea](https://github.com/charmbracelet/bubbletea) applications, featuring recursive dropdowns, keyboard navigation, and customizable styling via [Lip Gloss](https://github.com/charmbracelet/lipgloss).
 
+![Bubble Tea Menu Bar Example](https://github.com/user-attachments/assets/dce5ee8e-f932-4bfe-8663-88b117adb5bc)
+
 ## Features
 
 - **Top-level horizontal menu bar**
