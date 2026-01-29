@@ -6,7 +6,7 @@ import (
 
 	"time"
 
-	"bubbletea-menubar"
+	menubar "github.com/jejacks0n/bubbletea-menubar"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
