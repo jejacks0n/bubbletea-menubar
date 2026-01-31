@@ -30,11 +30,14 @@ Create a hierarchy of `MenuItem`s. Each item can have an action or a submenu.
 fileMenu := []menubar.MenuItem{
     {Label: "New", Hotkey: "N", Shortcut: "Ctrl+N"},
     {Label: "Open", Hotkey: "O", Shortcut: "Ctrl+O"},
+    {Label: "Save", Hotkey: "S", Shortcut: "Ctrl+S", Disabled: true},
+    menubar.Separator(),
     {Label: "Exit", Hotkey: "x", Action: func() tea.Msg { return tea.Quit() }},
 }
 
 items := []menubar.MenuItem{
     {Label: "File", Hotkey: "F", SubMenu: fileMenu},
+    menubar.Separator(),
     {Label: "Help", Hotkey: "H", SubMenu: []menubar.MenuItem{{Label: "About"}}},
 }
 ```

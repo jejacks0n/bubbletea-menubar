@@ -46,6 +46,9 @@ func initialModel() model {
 		{Label: "Copy", Hotkey: "C", Shortcut: "⌃⌘+C"},
 		{Label: "Paste", Hotkey: "P", Shortcut: "⌃⌘+P"},
 		menubar.Separator(),
+		{Label: "Undo", Hotkey: "U", Shortcut: "⌃⌘+Z", Disabled: true},
+		{Label: "Redo", Hotkey: "R", Shortcut: "⌃⌘+Y", Disabled: true},
+		menubar.Separator(),
 		{
 			Label:  "Find",
 			Hotkey: "F",

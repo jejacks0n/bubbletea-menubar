@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
 type MenuItem struct {
 	Label       string
 	Hotkey      string
@@ -15,6 +17,7 @@ type MenuItem struct {
 	Action      func() tea.Msg
 	SubMenu     []MenuItem
 	IsSeparator bool
+	Disabled    bool
 }
 
 func Separator() MenuItem {
@@ -46,6 +49,7 @@ type Styles struct {
 	ShortcutSelected lipgloss.Style
 	Hotkey           lipgloss.Style
 	Separator        lipgloss.Style
+	Disabled         lipgloss.Style
 }
 
 func DefaultStyles() Styles {
@@ -65,11 +69,9 @@ func DefaultStyles() Styles {
 			Foreground(lipgloss.Color("#666666")),
 		Dropdown: lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			//Background(lipgloss.Color("#FF0000")).
 			BorderForeground(lipgloss.Color("#5F5FD7")),
 		DropdownItem: lipgloss.NewStyle().
 			Padding(0, 1).
-			//Background(lipgloss.Color("#444")).
 			Foreground(lipgloss.Color("#CCCCCC")),
 		DropdownSelected: lipgloss.NewStyle().
 			Padding(0, 1).
@@ -77,11 +79,12 @@ func DefaultStyles() Styles {
 		ShortcutSelected: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#111111")),
 		Hotkey: lipgloss.NewStyle().
-			//Foreground(lipgloss.Color("#FCD200")).
 			Underline(true),
 		Separator: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#666666")).
-			Padding(0),
+			Foreground(lipgloss.Color("#666666")),
+		Disabled: lipgloss.NewStyle().
+			Padding(0, 1).
+			Foreground(lipgloss.Color("#666666")),
 	}
 }
 
@@ -122,9 +125,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 						if m.Selection < 0 {
 							m.Selection = len(m.Items) - 1
 						}
-						// Skip separators
+						// Skip separators and disabled items
 						start := m.Selection
-						for m.Items[m.Selection].IsSeparator {
+						for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 							m.Selection--
 							if m.Selection < 0 {
 								m.Selection = len(m.Items) - 1
@@ -142,9 +145,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 						if m.Selection >= len(m.Items) {
 							m.Selection = 0
 						}
-						// Skip separators
+						// Skip separators and disabled items
 						start := m.Selection
-						for m.Items[m.Selection].IsSeparator {
+						for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 							m.Selection++
 							if m.Selection >= len(m.Items) {
 								m.Selection = 0
@@ -179,7 +182,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		// Check for hotkeys
 		// 1. Exact match (case-sensitive)
 		for i, item := range m.Items {
-			if item.IsSeparator {
+			if item.IsSeparator || item.Disabled {
 				continue
 			}
 			if item.Hotkey != "" && key == item.Hotkey {
@@ -194,7 +197,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		// 2. Fallback to case-insensitive match
 		for i, item := range m.Items {
-			if item.IsSeparator {
+			if item.IsSeparator || item.Disabled {
 				continue
 			}
 			if item.Hotkey != "" && strings.EqualFold(key, item.Hotkey) {
@@ -219,9 +222,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if m.Selection < 0 {
 				m.Selection = len(m.Items) - 1
 			}
-			// Skip separators
+			// Skip separators and disabled items
 			start := m.Selection
-			for m.Items[m.Selection].IsSeparator {
+			for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 				m.Selection--
 				if m.Selection < 0 {
 					m.Selection = len(m.Items) - 1
@@ -242,9 +245,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if m.Selection >= len(m.Items) {
 					m.Selection = 0
 				}
-				// Skip separators
+				// Skip separators and disabled items
 				start := m.Selection
-				for m.Items[m.Selection].IsSeparator {
+				for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 					m.Selection++
 					if m.Selection >= len(m.Items) {
 						m.Selection = 0
@@ -260,9 +263,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if m.Selection < 0 {
 					m.Selection = len(m.Items) - 1
 				}
-				// Skip separators
+				// Skip separators and disabled items
 				start := m.Selection
-				for m.Items[m.Selection].IsSeparator {
+				for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 					m.Selection--
 					if m.Selection < 0 {
 						m.Selection = len(m.Items) - 1
@@ -278,9 +281,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if m.Selection >= len(m.Items) {
 					m.Selection = 0
 				}
-				// Skip separators
+				// Skip separators and disabled items
 				start := m.Selection
-				for m.Items[m.Selection].IsSeparator {
+				for m.Items[m.Selection].IsSeparator || m.Items[m.Selection].Disabled {
 					m.Selection++
 					if m.Selection >= len(m.Items) {
 						m.Selection = 0
@@ -298,6 +301,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			if len(m.Items) > 0 {
 				item := m.Items[m.Selection]
+				if item.Disabled {
+					return m, nil
+				}
 				if len(item.SubMenu) > 0 {
 					m.openCurrentSelection()
 				} else if item.Action != nil {
@@ -329,13 +335,6 @@ func (m *Model) openCurrentSelection() {
 }
 
 func (m Model) handleMouse(msg tea.MouseMsg) (Model, tea.Cmd) {
-	// If not active, only a click on the bar can activate it (optional, but good UX)
-	// For now, we assume if inactive, we ignore, or we can check if click is on bar.
-
-	// We start checking from the root.
-	// Root (Bar) is at 0,0 relative to this component.
-	// We need to return the updated model.
-
 	handled, cmd := m.checkMouse(msg, 0, 0)
 
 	// If click outside, close menus
@@ -358,18 +357,7 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 			// Position is to the right of the rendering
 			width, _ := m.getDropdownDimensions()
 			subX = baseX + width
-			// Y matches the item selection
-			// We need to account for border/padding of the parent dropdown
 			topBorder := lipgloss.Height(m.Styles.Dropdown.GetBorderStyle().Top)
-			// And item padding? Usually items are stacked.
-			// The render logic puts the submenu aligned with the item.
-			// Item index `m.OpenSubMenu` corresponds to Y offset.
-			// Each item is usually 1 line high + vertical padding?
-			// renderSingleDropdown just joins them vertically.
-			// Assuming 1 line height for text, + padding.
-			// Let's look at renderSingleDropdown again:
-			// It joins `style.Render(line)`.
-			// We need to calculate the Y offset of the *selected item*.
 
 			yOffset := topBorder
 			for i := 0; i < m.OpenSubMenu; i++ {
@@ -395,9 +383,6 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 		if handled {
 			return true, cmd
 		}
-
-		// If clicked outside submenu, and not handled by submenu, we might close it?
-		// We continue to check ourselves.
 	}
 
 	// 2. Check ourselves
@@ -413,29 +398,17 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 			// We iterate items to find which one covers localY
 			currentY := 0
 			for i := range m.Items {
-				// Measure height of this item
-				// We can't easily measure exact height without re-rendering or assuming.
-				// Assuming standard 1-line items for now (safe for menu bars usually)
-				// Taking padding into account? style.Render includes padding.
-				// m.Styles.DropdownItem usually has padding but it might be horizontal.
-				// Vertical padding adds lines.
 				itemH := lipgloss.Height(m.Styles.DropdownItem.Render("A"))
 				if m.Items[i].IsSeparator {
 					itemH = lipgloss.Height(m.Styles.Separator.Render("-"))
 				}
 
 				if localY >= currentY && localY < currentY+itemH {
-					if m.Items[i].IsSeparator {
+					if m.Items[i].IsSeparator || m.Items[i].Disabled {
 						return true, nil
 					}
-					// Hit item i
 					m.Selection = i
 
-					// Hover: Open submenu if exists?
-					// Standard behavior: if a sibling submenu is open, switch.
-					// If we are just moving mouse, we usually just highlight.
-
-					// Click:
 					if msg.Type == tea.MouseRelease {
 						if len(m.Items[i].SubMenu) > 0 {
 							m.openCurrentSelection()
@@ -443,10 +416,6 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 							return true, func() tea.Msg { return m.Items[i].Action() }
 						}
 					} else if msg.Type == tea.MouseMotion {
-						// Auto-switch submenu if one is already open
-						// Or if we implement "hover opens"
-						// For now: just highlight.
-						// Note: If we had a submenu open for a DIFFERENT item, we should close it?
 						if m.OpenSubMenu != -1 && m.OpenSubMenu != i {
 							m.OpenSubMenu = -1
 							m.SubMenuState = nil
@@ -459,27 +428,20 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 			return true, nil
 		}
 	} else {
-		// Top Bar Hit Test
-		// Height of bar
 		barHeight := lipgloss.Height(m.Styles.Bar.Render("A"))
 		if msg.Y >= baseY && msg.Y < baseY+barHeight {
-			// Check X
 			currentX := baseX
 			for i := range m.Items {
 				w := m.measureItem(i)
 				if msg.X >= currentX && msg.X < currentX+w {
-					// Hit item i
 					m.Selection = i
 
 					if msg.Type == tea.MouseRelease {
-						// Toggle or Open
 						if !m.Active {
 							m.Active = true
 						}
 						if len(m.Items[i].SubMenu) > 0 {
-							// If already open, maybe close?
 							if m.OpenSubMenu == i {
-								// Toggle off?
 								m.OpenSubMenu = -1
 								m.SubMenuState = nil
 							} else {
@@ -490,7 +452,6 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 						}
 					} else if msg.Type == tea.MouseMotion {
 						if m.Active && m.OpenSubMenu != -1 && m.OpenSubMenu != i {
-							// If we are active and have a submenu open, switching items on hover is standard
 							m.openCurrentSelection()
 						}
 					}
@@ -498,18 +459,8 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 				}
 				currentX += w
 			}
-			// Hit bar but no item (spacer)
 			return true, nil
 		}
-	}
-
-	// If click was outside everything
-	if msg.Type == tea.MouseRelease {
-		// Only close if we are the top level handling this
-		// But this is recursive.
-		// We return false. The caller (Update) might decide what to do.
-		// But since we modify m in place, we can close submenus here if we are the parent.
-		// Actually, if a child didn't handle it, and we didn't handle it, it's an outside click.
 	}
 
 	return false, nil
@@ -526,7 +477,6 @@ func (m Model) wantsToHandleRight() bool {
 	return len(m.Items) > 0 && len(m.Items[m.Selection].SubMenu) > 0
 }
 
-// View returns the rendered menu bar. If a submenu is open, it is appended vertically (pushing down content).
 func (m Model) View() string {
 	if m.isDropdown {
 		return m.viewDropdown()
@@ -534,8 +484,6 @@ func (m Model) View() string {
 	return m.ViewWithRightSide("", 0)
 }
 
-// ViewWithRightSide returns the rendered menu bar with optional right-side content.
-// If a submenu is open, it is appended vertically.
 func (m Model) ViewWithRightSide(right string, width int) string {
 	if m.isDropdown {
 		return m.viewDropdown()
@@ -549,7 +497,6 @@ func (m Model) ViewWithRightSide(right string, width int) string {
 	return bar
 }
 
-// ViewBar returns just the horizontal menu bar (without any open dropdowns).
 func (m Model) ViewBar() string {
 	if m.isDropdown {
 		return ""
@@ -557,7 +504,6 @@ func (m Model) ViewBar() string {
 	return m.renderBarContent("", 0)
 }
 
-// ViewBarWithRightSide returns just the horizontal menu bar with right-side content.
 func (m Model) ViewBarWithRightSide(right string, width int) string {
 	if m.isDropdown {
 		return ""
@@ -565,15 +511,12 @@ func (m Model) ViewBarWithRightSide(right string, width int) string {
 	return m.renderBarContent(right, width)
 }
 
-// DropdownLayer represents a single menu level to be overlaid.
 type DropdownLayer struct {
 	Content string
 	X       int
 	Y       int
 }
 
-// ViewDropdown returns the rendered dropdown (if any) and its horizontal offset relative to the bar.
-// Returns "", 0 if no dropdown is open.
 func (m Model) ViewDropdown() (string, int) {
 	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
 		dropdown := m.SubMenuState.View()
@@ -583,8 +526,6 @@ func (m Model) ViewDropdown() (string, int) {
 	return "", 0
 }
 
-// ViewDropdownLayers returns a list of dropdown layers (recursively) and the horizontal offset of the root dropdown.
-// This allows for overlaying menus without clearing the background in a rectangular bounding box.
 func (m Model) ViewDropdownLayers() ([]DropdownLayer, int) {
 	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
 		offset := m.getDropdownOffset()
@@ -613,7 +554,7 @@ func (m Model) measureItem(i int) int {
 		return lipgloss.Width(m.Styles.Item.Render("|"))
 	}
 	style := m.Styles.Item
-	// We simulate the selection state to get accurate width if style changes on selection
+
 	if m.Active && i == m.Selection {
 		style = m.Styles.SelectedItem
 	}
@@ -633,15 +574,15 @@ func (m Model) renderBarContent(right string, width int) string {
 		if m.Active && i == m.Selection {
 			style = m.Styles.SelectedItem
 		}
+		if item.Disabled {
+			style = m.Styles.Disabled.Copy().Inherit(m.Styles.Item)
+		}
 		baseStyle := style.Copy().UnsetPadding()
 		views = append(views, style.Render(m.renderLabel(item, baseStyle)))
 	}
 
-	// Prepare style for filling (spacer and right side)
-	// We copy the Bar style but remove layout properties to ensure only colors apply
 	fillStyle := m.Styles.Bar.Copy().UnsetPadding().BorderTop(false).BorderRight(false).BorderBottom(false).BorderLeft(false).Margin(0)
 
-	// Calculate spacing
 	if width > 0 {
 		itemsWidth := lipgloss.Width(lipgloss.JoinHorizontal(lipgloss.Top, views...))
 		rightWidth := lipgloss.Width(right)
@@ -677,12 +618,6 @@ func (m Model) viewDropdown() string {
 
 	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
 		subMenu := m.SubMenuState.View()
-		// Add newlines to align with selection
-		// We need to account for the border of the parent menu if any
-		// The selection index corresponds to the item index.
-		// Each item is 1 line high.
-		// Plus top border (1 line).
-
 		padding := strings.Repeat("\n", m.Selection+1) // +1 for top border
 		return lipgloss.JoinHorizontal(lipgloss.Top, menu, padding+subMenu)
 	}
@@ -714,26 +649,12 @@ func (m Model) getDropdownDimensions() (int, int) {
 		maxRightWidth = 2
 	}
 
-	// Calculate single item width
-	// Structure: Border + Padding + Label + Gap + RightContent + Padding + Border
-	// We use the Style to measure padding/border
-	// But styles are applied per item.
-	// We can render a dummy item to measure overhead.
 	dummyStyle := m.Styles.DropdownItem
-
-	// Inner content width calculation
-	// Label + Padding(Spacer) + RightContent
-	// The render logic aligns them.
-	// Width = maxLabelWidth + 2 (gap) + maxRightWidth
 	innerContentWidth := maxLabelWidth + 2 + maxRightWidth
 
-	// Apply item padding
 	itemWidth := lipgloss.Width(dummyStyle.Render(strings.Repeat(" ", innerContentWidth)))
-
-	// Height = number of items
 	height := len(m.Items)
 
-	// Apply Dropdown container border/padding
 	w, h := m.Styles.Dropdown.GetFrameSize()
 
 	return itemWidth + w, height + h
@@ -786,12 +707,16 @@ func (m Model) renderSingleDropdown() string {
 		if i == m.Selection {
 			style = m.Styles.DropdownSelected
 		}
+		if item.Disabled {
+			style = m.Styles.Disabled.Copy().Inherit(m.Styles.DropdownItem)
+		}
 
 		baseStyle := style.Copy().UnsetPadding()
 
 		// Render Label
 		label := m.renderLabel(item, baseStyle)
 		currentLabelWidth := lipgloss.Width(label)
+
 		// Pad label to max width + gap
 		padding := baseStyle.Render(strings.Repeat(" ", maxLabelWidth-currentLabelWidth+2))
 
@@ -801,6 +726,9 @@ func (m Model) renderSingleDropdown() string {
 			shortcutStyle := m.Styles.Shortcut.Copy().Inherit(baseStyle)
 			if i == m.Selection {
 				shortcutStyle = m.Styles.ShortcutSelected.Copy().Inherit(baseStyle)
+			}
+			if item.Disabled {
+				shortcutStyle = m.Styles.Disabled.Copy().Inherit(baseStyle).Padding(0)
 			}
 
 			shortcutStr := shortcutStyle.Render(item.Shortcut)
@@ -823,14 +751,12 @@ func (m Model) renderSingleDropdown() string {
 }
 
 func (m Model) renderLabel(item MenuItem, baseStyle lipgloss.Style) string {
-	if item.Hotkey == "" {
+	if item.Hotkey == "" || item.Disabled {
 		return baseStyle.Render(item.Label)
 	}
 
-	// Try exact match first
 	idx := strings.Index(item.Label, item.Hotkey)
 	if idx == -1 {
-		// Fallback to case-insensitive match
 		idx = strings.Index(strings.ToLower(item.Label), strings.ToLower(item.Hotkey))
 	}
 
@@ -852,10 +778,6 @@ func (m Model) renderLabel(item MenuItem, baseStyle lipgloss.Style) string {
 	return baseStyle.Render(pre) + hotStyle.Render(hot) + postRendered
 }
 
-var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-// Overlay overlays the foreground string (fg) onto the background string (bg)
-// at the specified x, y coordinates. This is a helper for overlaying dropdowns.
 func Overlay(bg string, fg string, x, y int) string {
 	bgLines := strings.Split(bg, "\n")
 	fgLines := strings.Split(fg, "\n")
@@ -870,30 +792,22 @@ func Overlay(bg string, fg string, x, y int) string {
 		bgLine := bgLines[row]
 		bgWidth := lipgloss.Width(bgLine)
 
-		// If the background line is shorter than x, pad it.
 		if bgWidth < x {
 			padding := strings.Repeat(" ", x-bgWidth)
 			bgLines[row] = bgLine + padding + fgLine
 			continue
 		}
 
-		// Robust splitting using lipgloss.Width to handle ANSI codes correctly.
 		prefix, _ := splitWithANSI(bgLine, x)
 
-		// Calculate where the suffix should start
 		fgWidth := lipgloss.Width(fgLine)
 		suffixStart := x + fgWidth
 
 		preSuffix, suffix := splitWithANSI(bgLine, suffixStart)
 
-		// Restore styles for suffix:
-		// The fgLine likely ends with a reset. We need to restore the styles active
-		// at the point where suffix starts. We do this by extracting all ANSI codes
-		// from the part of the line before the suffix and prepending them.
 		ansiCodes := strings.Join(ansiRegex.FindAllString(preSuffix, -1), "")
 		suffix = ansiCodes + suffix
 
-		// Calculate padding if prefix is shorter than x (e.g. due to wide chars being cut)
 		prefixWidth := lipgloss.Width(prefix)
 		padding := ""
 		if prefixWidth < x {
