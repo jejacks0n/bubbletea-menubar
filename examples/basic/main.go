@@ -37,6 +37,7 @@ func initialModel() model {
 		{Label: "New", Hotkey: "n", Shortcut: "⌃+N", Action: func() tea.Msg { return actionMsg("New File Created") }},
 		{Label: "Open", Hotkey: "O", Shortcut: "⌃+O", Action: func() tea.Msg { return actionMsg("File Opened") }},
 		{Label: "Save", Hotkey: "S", Shortcut: "⌃+S", Action: func() tea.Msg { return actionMsg("File Saved") }},
+		menubar.Separator(),
 		{Label: "Exit", Hotkey: "x", Shortcut: "⌃+C", Action: func() tea.Msg { return tea.Quit() }},
 	}
 
@@ -44,6 +45,7 @@ func initialModel() model {
 		{Label: "Cut", Hotkey: "t", Shortcut: "⌃⌘+X"},
 		{Label: "Copy", Hotkey: "C", Shortcut: "⌃⌘+C"},
 		{Label: "Paste", Hotkey: "P", Shortcut: "⌃⌘+P"},
+		menubar.Separator(),
 		{
 			Label:  "Find",
 			Hotkey: "F",
@@ -68,6 +70,7 @@ func initialModel() model {
 	items := []menubar.MenuItem{
 		{Label: "File", Hotkey: "F", SubMenu: fileMenu},
 		{Label: "Edit", Hotkey: "E", SubMenu: editMenu},
+		menubar.Separator(),
 		{Label: "Help", Hotkey: "H", SubMenu: helpMenu},
 	}
 

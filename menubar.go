@@ -9,11 +9,16 @@ import (
 )
 
 type MenuItem struct {
-	Label    string
-	Hotkey   string
-	Shortcut string
-	Action   func() tea.Msg
-	SubMenu  []MenuItem
+	Label       string
+	Hotkey      string
+	Shortcut    string
+	Action      func() tea.Msg
+	SubMenu     []MenuItem
+	IsSeparator bool
+}
+
+func Separator() MenuItem {
+	return MenuItem{IsSeparator: true}
 }
 
 type Model struct {
@@ -40,6 +45,7 @@ type Styles struct {
 	DropdownSelected lipgloss.Style
 	ShortcutSelected lipgloss.Style
 	Hotkey           lipgloss.Style
+	Separator        lipgloss.Style
 }
 
 func DefaultStyles() Styles {
@@ -73,6 +79,9 @@ func DefaultStyles() Styles {
 		Hotkey: lipgloss.NewStyle().
 			//Foreground(lipgloss.Color("#FCD200")).
 			Underline(true),
+		Separator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666666")).
+			Padding(0),
 	}
 }
 
@@ -113,6 +122,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 						if m.Selection < 0 {
 							m.Selection = len(m.Items) - 1
 						}
+						// Skip separators
+						start := m.Selection
+						for m.Items[m.Selection].IsSeparator {
+							m.Selection--
+							if m.Selection < 0 {
+								m.Selection = len(m.Items) - 1
+							}
+							if m.Selection == start {
+								break
+							}
+						}
 						m.openCurrentSelection()
 						return m, nil
 					}
@@ -121,6 +141,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 						m.Selection++
 						if m.Selection >= len(m.Items) {
 							m.Selection = 0
+						}
+						// Skip separators
+						start := m.Selection
+						for m.Items[m.Selection].IsSeparator {
+							m.Selection++
+							if m.Selection >= len(m.Items) {
+								m.Selection = 0
+							}
+							if m.Selection == start {
+								break
+							}
 						}
 						m.openCurrentSelection()
 						return m, nil
@@ -148,6 +179,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		// Check for hotkeys
 		// 1. Exact match (case-sensitive)
 		for i, item := range m.Items {
+			if item.IsSeparator {
+				continue
+			}
 			if item.Hotkey != "" && key == item.Hotkey {
 				m.Selection = i
 				if len(item.SubMenu) > 0 {
@@ -160,6 +194,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		// 2. Fallback to case-insensitive match
 		for i, item := range m.Items {
+			if item.IsSeparator {
+				continue
+			}
 			if item.Hotkey != "" && strings.EqualFold(key, item.Hotkey) {
 				m.Selection = i
 				if len(item.SubMenu) > 0 {
@@ -182,6 +219,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if m.Selection < 0 {
 				m.Selection = len(m.Items) - 1
 			}
+			// Skip separators
+			start := m.Selection
+			for m.Items[m.Selection].IsSeparator {
+				m.Selection--
+				if m.Selection < 0 {
+					m.Selection = len(m.Items) - 1
+				}
+				if m.Selection == start {
+					break
+				}
+			}
 		case "right":
 			if m.isDropdown {
 				// If current item has submenu, open it
@@ -194,6 +242,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if m.Selection >= len(m.Items) {
 					m.Selection = 0
 				}
+				// Skip separators
+				start := m.Selection
+				for m.Items[m.Selection].IsSeparator {
+					m.Selection++
+					if m.Selection >= len(m.Items) {
+						m.Selection = 0
+					}
+					if m.Selection == start {
+						break
+					}
+				}
 			}
 		case "up":
 			if m.isDropdown {
@@ -201,12 +260,34 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if m.Selection < 0 {
 					m.Selection = len(m.Items) - 1
 				}
+				// Skip separators
+				start := m.Selection
+				for m.Items[m.Selection].IsSeparator {
+					m.Selection--
+					if m.Selection < 0 {
+						m.Selection = len(m.Items) - 1
+					}
+					if m.Selection == start {
+						break
+					}
+				}
 			}
 		case "down":
 			if m.isDropdown {
 				m.Selection++
 				if m.Selection >= len(m.Items) {
 					m.Selection = 0
+				}
+				// Skip separators
+				start := m.Selection
+				for m.Items[m.Selection].IsSeparator {
+					m.Selection++
+					if m.Selection >= len(m.Items) {
+						m.Selection = 0
+					}
+					if m.Selection == start {
+						break
+					}
 				}
 			} else {
 				// Open menu
@@ -292,7 +373,11 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 
 			yOffset := topBorder
 			for i := 0; i < m.OpenSubMenu; i++ {
-				yOffset += lipgloss.Height(m.Styles.DropdownItem.Render("A")) // Approx height
+				h := lipgloss.Height(m.Styles.DropdownItem.Render("A"))
+				if m.Items[i].IsSeparator {
+					h = lipgloss.Height(m.Styles.Separator.Render("-"))
+				}
+				yOffset += h
 			}
 			subY = baseY + yOffset
 		} else {
@@ -335,8 +420,14 @@ func (m *Model) checkMouse(msg tea.MouseMsg, baseX, baseY int) (bool, tea.Cmd) {
 				// m.Styles.DropdownItem usually has padding but it might be horizontal.
 				// Vertical padding adds lines.
 				itemH := lipgloss.Height(m.Styles.DropdownItem.Render("A"))
+				if m.Items[i].IsSeparator {
+					itemH = lipgloss.Height(m.Styles.Separator.Render("-"))
+				}
 
 				if localY >= currentY && localY < currentY+itemH {
+					if m.Items[i].IsSeparator {
+						return true, nil
+					}
 					// Hit item i
 					m.Selection = i
 
@@ -518,6 +609,9 @@ func (m Model) getLayersRecursive(baseX, baseY int) []DropdownLayer {
 }
 
 func (m Model) measureItem(i int) int {
+	if m.Items[i].IsSeparator {
+		return lipgloss.Width(m.Styles.Item.Render("|"))
+	}
 	style := m.Styles.Item
 	// We simulate the selection state to get accurate width if style changes on selection
 	if m.Active && i == m.Selection {
@@ -531,6 +625,10 @@ func (m Model) measureItem(i int) int {
 func (m Model) renderBarContent(right string, width int) string {
 	var views []string
 	for i, item := range m.Items {
+		if item.IsSeparator {
+			views = append(views, m.Styles.Item.Render("|"))
+			continue
+		}
 		style := m.Styles.Item
 		if m.Active && i == m.Selection {
 			style = m.Styles.SelectedItem
@@ -666,8 +764,24 @@ func (m Model) renderSingleDropdown() string {
 		maxRightWidth = 2
 	}
 
+	// Calculate standard item width (including padding)
+	innerContentWidth := maxLabelWidth + 2 + maxRightWidth
+	standardWidth := lipgloss.Width(m.Styles.DropdownItem.Render(strings.Repeat(" ", innerContentWidth)))
+
 	var views []string
 	for i, item := range m.Items {
+		if item.IsSeparator {
+			// Calculate line length to match standardWidth when rendered with separator style
+			separatorSideWidth := m.Styles.Separator.GetHorizontalFrameSize()
+			lineLength := standardWidth - separatorSideWidth
+			if lineLength < 0 {
+				lineLength = 0
+			}
+			line := strings.Repeat("─", lineLength)
+			views = append(views, m.Styles.Separator.Render(line))
+			continue
+		}
+
 		style := m.Styles.DropdownItem
 		if i == m.Selection {
 			style = m.Styles.DropdownSelected
