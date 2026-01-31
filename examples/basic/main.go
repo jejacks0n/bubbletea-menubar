@@ -31,8 +31,8 @@ func tick() tea.Cmd {
 
 type actionMsg string
 
-// //⌘❖◆✲⎈⌃⎇⌥⇧⇪⏎
 func initialModel() model {
+	// Common keyboard modifier symbols: ⌘❖◆✲⎈⌃⎇⌥⇧⇪⏎
 	fileMenu := []menubar.MenuItem{
 		{Label: "New", Hotkey: "n", Shortcut: "⌃+N", Action: func() tea.Msg { return actionMsg("New File Created") }},
 		{Label: "Open", Hotkey: "O", Shortcut: "⌃+O", Action: func() tea.Msg { return actionMsg("File Opened") }},
@@ -104,7 +104,10 @@ func initialModel() model {
 			content += string(char)
 			continue
 		}
-		content += lipgloss.NewStyle().Foreground(lipgloss.Color(colors[i%len(colors)])).Render(string(char))
+		content += lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors[i%len(colors)])).
+			Background(lipgloss.Color("#330000")).
+			Render(string(char))
 		i++
 	}
 	contentStyle := lipgloss.NewStyle().Margin(1, 2)

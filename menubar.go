@@ -52,6 +52,12 @@ type Styles struct {
 	Disabled         lipgloss.Style
 }
 
+type DropdownLayer struct {
+	Content string
+	X       int
+	Y       int
+}
+
 func DefaultStyles() Styles {
 	return Styles{
 		Bar: lipgloss.NewStyle().
@@ -69,6 +75,7 @@ func DefaultStyles() Styles {
 			Foreground(lipgloss.Color("#666666")),
 		Dropdown: lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
+			BorderBackground(lipgloss.NoColor{}).
 			BorderForeground(lipgloss.Color("#5F5FD7")),
 		DropdownItem: lipgloss.NewStyle().
 			Padding(0, 1).
@@ -327,6 +334,100 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) View() string {
+	if m.isDropdown {
+		return m.viewDropdown()
+	}
+	return m.ViewWithRightSide("", 0)
+}
+
+func (m Model) ViewWithRightSide(right string, width int) string {
+	if m.isDropdown {
+		return m.viewDropdown()
+	}
+	bar := m.renderBarContent(right, width)
+	dropdown, offset := m.ViewDropdown()
+
+	if dropdown != "" {
+		return lipgloss.JoinVertical(lipgloss.Top, bar, lipgloss.NewStyle().MarginLeft(offset).Render(dropdown))
+	}
+	return bar
+}
+
+func (m Model) ViewBar() string {
+	if m.isDropdown {
+		return ""
+	}
+	return m.renderBarContent("", 0)
+}
+
+func (m Model) ViewBarWithRightSide(right string, width int) string {
+	if m.isDropdown {
+		return ""
+	}
+	return m.renderBarContent(right, width)
+}
+
+func (m Model) ViewDropdown() (string, int) {
+	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
+		dropdown := m.SubMenuState.View()
+		offset := m.getDropdownOffset()
+		return dropdown, offset
+	}
+	return "", 0
+}
+
+func (m Model) ViewDropdownLayers() ([]DropdownLayer, int) {
+	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
+		offset := m.getDropdownOffset()
+		layers := m.SubMenuState.getLayersRecursive(0, 0)
+		return layers, offset
+	}
+	return nil, 0
+}
+
+func Overlay(bg string, fg string, x, y int) string {
+	bgLines := strings.Split(bg, "\n")
+	fgLines := strings.Split(fg, "\n")
+
+	for i, fgLine := range fgLines {
+		row := y + i
+		if row >= len(bgLines) {
+			bgLines = append(bgLines, strings.Repeat(" ", x)+fgLine)
+			continue
+		}
+
+		bgLine := bgLines[row]
+		bgWidth := lipgloss.Width(bgLine)
+
+		if bgWidth < x {
+			padding := strings.Repeat(" ", x-bgWidth)
+			bgLines[row] = bgLine + padding + fgLine
+			continue
+		}
+
+		prefix, _ := splitWithANSI(bgLine, x)
+
+		fgWidth := lipgloss.Width(fgLine)
+		suffixStart := x + fgWidth
+
+		preSuffix, suffix := splitWithANSI(bgLine, suffixStart)
+
+		ansiCodes := strings.Join(ansiRegex.FindAllString(preSuffix, -1), "")
+		suffix = ansiCodes + suffix
+
+		prefixWidth := lipgloss.Width(prefix)
+		padding := ""
+		if prefixWidth < x {
+			padding = strings.Repeat(" ", x-prefixWidth)
+		}
+
+		// bgLines[row] = prefix + padding + fgLine + suffix
+		bgLines[row] = prefix + padding + "\x1b[0m" + fgLine + suffix
+	}
+	return strings.Join(bgLines, "\n")
+}
+
 func (m *Model) ensureValidSelection() bool {
 	if len(m.Items) == 0 {
 		m.Selection = -1
@@ -515,64 +616,6 @@ func (m Model) wantsToHandleRight() bool {
 		return m.SubMenuState.wantsToHandleRight()
 	}
 	return len(m.Items) > 0 && len(m.Items[m.Selection].SubMenu) > 0
-}
-
-func (m Model) View() string {
-	if m.isDropdown {
-		return m.viewDropdown()
-	}
-	return m.ViewWithRightSide("", 0)
-}
-
-func (m Model) ViewWithRightSide(right string, width int) string {
-	if m.isDropdown {
-		return m.viewDropdown()
-	}
-	bar := m.renderBarContent(right, width)
-	dropdown, offset := m.ViewDropdown()
-
-	if dropdown != "" {
-		return lipgloss.JoinVertical(lipgloss.Top, bar, lipgloss.NewStyle().MarginLeft(offset).Render(dropdown))
-	}
-	return bar
-}
-
-func (m Model) ViewBar() string {
-	if m.isDropdown {
-		return ""
-	}
-	return m.renderBarContent("", 0)
-}
-
-func (m Model) ViewBarWithRightSide(right string, width int) string {
-	if m.isDropdown {
-		return ""
-	}
-	return m.renderBarContent(right, width)
-}
-
-type DropdownLayer struct {
-	Content string
-	X       int
-	Y       int
-}
-
-func (m Model) ViewDropdown() (string, int) {
-	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
-		dropdown := m.SubMenuState.View()
-		offset := m.getDropdownOffset()
-		return dropdown, offset
-	}
-	return "", 0
-}
-
-func (m Model) ViewDropdownLayers() ([]DropdownLayer, int) {
-	if m.OpenSubMenu != -1 && m.SubMenuState != nil {
-		offset := m.getDropdownOffset()
-		layers := m.SubMenuState.getLayersRecursive(0, 0)
-		return layers, offset
-	}
-	return nil, 0
 }
 
 func (m Model) getLayersRecursive(baseX, baseY int) []DropdownLayer {
@@ -817,47 +860,6 @@ func (m Model) renderLabel(item MenuItem, baseStyle lipgloss.Style) string {
 	}
 
 	return baseStyle.Render(pre) + hotStyle.Render(hot) + postRendered
-}
-
-func Overlay(bg string, fg string, x, y int) string {
-	bgLines := strings.Split(bg, "\n")
-	fgLines := strings.Split(fg, "\n")
-
-	for i, fgLine := range fgLines {
-		row := y + i
-		if row >= len(bgLines) {
-			bgLines = append(bgLines, strings.Repeat(" ", x)+fgLine)
-			continue
-		}
-
-		bgLine := bgLines[row]
-		bgWidth := lipgloss.Width(bgLine)
-
-		if bgWidth < x {
-			padding := strings.Repeat(" ", x-bgWidth)
-			bgLines[row] = bgLine + padding + fgLine
-			continue
-		}
-
-		prefix, _ := splitWithANSI(bgLine, x)
-
-		fgWidth := lipgloss.Width(fgLine)
-		suffixStart := x + fgWidth
-
-		preSuffix, suffix := splitWithANSI(bgLine, suffixStart)
-
-		ansiCodes := strings.Join(ansiRegex.FindAllString(preSuffix, -1), "")
-		suffix = ansiCodes + suffix
-
-		prefixWidth := lipgloss.Width(prefix)
-		padding := ""
-		if prefixWidth < x {
-			padding = strings.Repeat(" ", x-prefixWidth)
-		}
-
-		bgLines[row] = prefix + padding + fgLine + suffix
-	}
-	return strings.Join(bgLines, "\n")
 }
 
 func splitWithANSI(s string, width int) (string, string) {
