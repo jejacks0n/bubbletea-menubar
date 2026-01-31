@@ -81,6 +81,7 @@ func DefaultStyles() Styles {
 		Hotkey: lipgloss.NewStyle().
 			Underline(true),
 		Separator: lipgloss.NewStyle().
+			Padding(0, 1).
 			Foreground(lipgloss.Color("#666666")),
 		Disabled: lipgloss.NewStyle().
 			Padding(0, 1).
@@ -107,6 +108,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
 		return m.handleMouse(mouseMsg)
 	}
+
+	// Ensure selection is valid (e.g. if first item is disabled)
+	m.ensureValidSelection()
 
 	if !m.Active {
 		return m, nil
@@ -321,6 +325,42 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) ensureValidSelection() bool {
+	if len(m.Items) == 0 {
+		m.Selection = -1
+		return false
+	}
+	// Normalize selection
+	if m.Selection < 0 {
+		m.Selection = 0
+	}
+	if m.Selection >= len(m.Items) {
+		m.Selection = 0
+	}
+
+	// If currently selected item is valid, we are good
+	if !m.Items[m.Selection].Disabled && !m.Items[m.Selection].IsSeparator {
+		return true
+	}
+
+	// Otherwise, search for the next valid item
+	start := m.Selection
+	for {
+		m.Selection++
+		if m.Selection >= len(m.Items) {
+			m.Selection = 0
+		}
+		if !m.Items[m.Selection].Disabled && !m.Items[m.Selection].IsSeparator {
+			return true
+		}
+		// If we looped back to start, everything is disabled/separator
+		if m.Selection == start {
+			m.Selection = -1
+			return false
+		}
+	}
 }
 
 func (m *Model) openCurrentSelection() {
@@ -566,16 +606,17 @@ func (m Model) measureItem(i int) int {
 func (m Model) renderBarContent(right string, width int) string {
 	var views []string
 	for i, item := range m.Items {
+		style := m.Styles.Item
 		if item.IsSeparator {
-			views = append(views, m.Styles.Item.Render("|"))
+			style = m.Styles.Disabled.Copy().Inherit(style).UnsetPadding()
+			views = append(views, style.Render("|"))
 			continue
 		}
-		style := m.Styles.Item
 		if m.Active && i == m.Selection {
 			style = m.Styles.SelectedItem
 		}
 		if item.Disabled {
-			style = m.Styles.Disabled.Copy().Inherit(m.Styles.Item)
+			style = m.Styles.Disabled.Copy().Inherit(style)
 		}
 		baseStyle := style.Copy().UnsetPadding()
 		views = append(views, style.Render(m.renderLabel(item, baseStyle)))
